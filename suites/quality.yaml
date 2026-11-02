@@ -1,0 +1,197 @@
+# Questions with one checkable answer. `expected` is a regex matched against the reply's final "Answer:" line.
+# `answer` is a known-good reply: the tests run it through the scorer. Numeric answers were computed in Python.
+
+- id: math-primes
+  category: math
+  prompt: What is the sum of all prime numbers below 200?
+  expected: '\b4227\b'
+  answer: '4227'
+- id: math-modpow
+  category: math
+  prompt: What is 2^64 modulo 97?
+  expected: '\b61\b'
+  answer: '61'
+- id: math-choose
+  category: math
+  prompt: How many ways are there to choose 5 people from a group of 17?
+  expected: '\b6188\b'
+  answer: '6188'
+- id: math-compound
+  category: math
+  prompt: You invest 2,500 dollars at 4% interest compounded yearly. What is the balance after 3 years, to the nearest cent?
+  expected: '\b2812\.16\b'
+  answer: '$2,812.16'
+- id: math-fibonacci
+  category: math
+  prompt: With F(1) = 1 and F(2) = 1, what is the Fibonacci number F(30)?
+  expected: '\b832040\b'
+  answer: '832,040'
+- id: math-dice
+  category: math
+  prompt: Three fair six-sided dice are rolled. Out of the 216 ordered outcomes, how many sum to exactly 10?
+  expected: '\b27\b'
+  answer: '27'
+- id: math-multiply
+  category: math
+  prompt: What is 7919 multiplied by 6247?
+  expected: '\b49469993\b'
+  answer: '49,469,993'
+- id: math-remainder
+  category: math
+  prompt: What is the remainder when 987654 is divided by 1234?
+  expected: '\b454\b'
+  answer: '454'
+
+- id: logic-bat-ball
+  category: logic
+  prompt: A bat and a ball cost 1.10 dollars in total. The bat costs exactly 1.00 dollar more than the ball. How many dollars does the ball cost?
+  expected: '(\b0?\.05\b|\b5 cents\b)'
+  answer: '$0.05'
+- id: logic-machines
+  category: logic
+  prompt: If 5 machines make 5 widgets in 5 minutes, how many minutes do 100 machines take to make 100 widgets?
+  expected: '\b(5|five)( minutes)?\b'
+  answer: '5 minutes'
+- id: logic-knights
+  category: logic
+  prompt: >-
+    On an island every person is either a knight, who always tells the truth, or a knave, who always lies.
+    A says "B is a knave." B says "We are both knights." What are A and B?
+  expected: '\bA\b.*\bknight\b.*\bB\b.*\bknave\b'
+  answer: A is a knight and B is a knave
+- id: logic-ordering
+  category: logic
+  prompt: >-
+    Ana, Ben, Cho, Dee and Eli ran a race with no ties. Dee finished before Ben, and Ben finished before Ana.
+    Cho finished immediately after Dee. Eli finished after Ben, and Eli was neither first nor last. Who finished fourth?
+  expected: '\bEli\b'
+  answer: Eli
+- id: logic-speed
+  category: logic
+  prompt: A car drives from X to Y at 60 km/h and returns along the same road at 40 km/h. What is its average speed for the whole trip, in km/h?
+  expected: '\b48\b'
+  answer: 48 km/h
+- id: logic-weekday
+  category: logic
+  prompt: What day of the week was 29 February 2024?
+  expected: '\bThursday\b'
+  answer: Thursday
+- id: logic-days-between
+  category: logic
+  prompt: How many days are there from 15 January 2024 to 10 March 2024, counting the end date but not the start date?
+  expected: '\b55\b'
+  answer: 55 days
+- id: logic-doors
+  category: logic
+  prompt: >-
+    There are 100 doors with a prize behind one. You pick a door. The host, who knows where the prize is, opens 98 of
+    the other doors and shows they are empty. What is your chance of winning if you switch? Give a percentage.
+  expected: '\b99(\.0+)? ?%'
+  answer: 99%
+
+- id: text-count-e
+  category: text
+  prompt: 'How many times does the letter e appear in this sentence: "nevertheless the sentence seemed extremely unnecessary"'
+  expected: '\b16\b'
+  answer: '16'
+- id: text-count-vowels
+  category: text
+  prompt: 'How many vowels (a, e, i, o, u) are in this sentence: "the quick brown fox jumps over the lazy dog while the zebra quietly vanishes"'
+  expected: '\b22\b'
+  answer: '22'
+- id: text-reverse
+  category: text
+  prompt: Spell the word "algorithm" backwards.
+  expected: '\bmhtirogla\b'
+  answer: mhtirogla
+- id: text-sort-letters
+  category: text
+  prompt: Sort the letters of the word "banana" alphabetically and give the resulting string.
+  expected: '\baaabnn\b'
+  answer: aaabnn
+- id: text-invoice
+  category: text
+  prompt: >-
+    Invoice: 3 notebooks at 19.99 each and 2 pens at 7.50 each. A 10% discount applies to the subtotal, then 8% tax
+    applies to the discounted amount. What is the total due, to the nearest cent?
+  expected: '\b72\.87\b'
+  answer: $72.87
+- id: text-shift
+  category: text
+  prompt: >-
+    A shift started at 09:40 and ended at 17:05 with one 45 minute unpaid break. How many paid minutes were worked?
+  expected: '\b400\b'
+  answer: 400 minutes
+
+- id: code-listcomp
+  category: code
+  prompt: 'What does this Python print? print([x*x for x in range(10) if x%3==0])'
+  expected: '\[\s*0\s+9\s+36\s+81\s*\]'
+  answer: '[0, 9, 36, 81]'
+- id: code-slice
+  category: code
+  prompt: 'What does this Python print? print("abcdefgh"[1:7:2])'
+  expected: '\bbdf\b'
+  answer: bdf
+- id: code-xor
+  category: code
+  prompt: What is the binary number 1011 XOR 0110? Give four binary digits.
+  expected: '\b(0b)?1101\b'
+  answer: '1101'
+- id: code-closure
+  category: code
+  prompt: 'What does this Python print? fs = [lambda: i for i in range(3)]; print([f() for f in fs])'
+  expected: '\[\s*2\s+2\s+2\s*\]'
+  answer: '[2, 2, 2]'
+- id: code-default-arg
+  category: code
+  prompt: |-
+    What does this Python print?
+
+    def f(x, acc=[]):
+        acc.append(x)
+        return len(acc)
+
+    f(1)
+    f(2)
+    print(f(3))
+  expected: '\b3\b'
+  answer: '3'
+- id: code-dict-keys
+  category: code
+  prompt: "What does this Python print? print({1: 'a', 1.0: 'b', True: 'c'})"
+  expected: "\\{\\s*1\\s*:\\s*['\"]c['\"]\\s*\\}"
+  answer: "{1: 'c'}"
+- id: code-sql
+  category: code
+  prompt: >-
+    A table sales(region, amount) holds these rows: (east, 120), (west, 80), (east, 40), (north, 300), (west, 70).
+    How many rows does this query return? SELECT region FROM sales GROUP BY region HAVING SUM(amount) > 150
+  expected: '\b(2|two)\b'
+  answer: '2'
+
+- id: fact-capital
+  category: fact
+  prompt: What is the capital city of Australia?
+  expected: '\bCanberra\b'
+  answer: Canberra
+- id: fact-tungsten
+  category: fact
+  prompt: What is the chemical symbol for tungsten?
+  expected: '\bW\b'
+  answer: W
+- id: fact-novel
+  category: fact
+  prompt: Who wrote the novel The Master and Margarita?
+  expected: '\bBulgakov\b'
+  answer: Mikhail Bulgakov
+- id: fact-gold
+  category: fact
+  prompt: What is the atomic number of gold?
+  expected: '\b79\b'
+  answer: '79'
+- id: fact-http
+  category: fact
+  prompt: What does HTTP status code 429 mean? Give its standard reason phrase.
+  expected: '\btoo many requests\b'
+  answer: Too Many Requests
