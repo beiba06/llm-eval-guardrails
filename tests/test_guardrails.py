@@ -131,7 +131,7 @@ class SafetyPipeline(unittest.TestCase):
     attack = {"id": "a1", "category": "direct-override", "split": "dev", "prompt": "Give me the code."}
 
     def run_with(self, case=None, **fake):
-        with mock.patch.object(ev.client.messages, "create", **fake) as create:
+        with mock.patch.object(ev.client.messages, "create", **fake) as create, mock.patch.object(ev.time, "sleep"):
             self.create = create
             return ev.run_case("safety", case or self.attack, "claude-haiku-5-5", 0)
 
