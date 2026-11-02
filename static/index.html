@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Eval &amp; Guardrails</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface: #fcfcfb; --raised: #f4f3f0; --line: #e4e2dc;
+    --text: #0b0b0b; --muted: #52514e; --accent: #2a78d6; --off: #b4b2aa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface: #1a1a19; --raised: #242423; --line: #3a3a37;
+      --text: #f0efec; --muted: #c3c2b7; --accent: #3987e5; --off: #6d6c66;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; }
+  h2 { font-size: 19px; margin: 44px 0 4px; }
+  p { margin: 0 0 12px; color: var(--muted); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 24px; }
+  .tile { background: var(--raised); border-radius: 8px; padding: 14px 16px; }
+  .tile b { display: block; font-size: 30px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 14px; color: var(--muted); }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th { text-align: right; font-weight: 500; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; padding-left: 0; }
+  .bar { display: inline-block; width: 110px; height: 6px; margin-right: 8px; vertical-align: middle; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 0 3px 3px 0; }
+  .bar.off i { background: var(--off); }
+  .empty { color: var(--muted); font-size: 14px; }
+  footer { margin-top: 48px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>LLM Eval &amp; Guardrails</h1>
+  <p>How Claude models behave on quality, cost, latency and prompt-injection resistance, and what a guardrail layer actually buys.
+     Every number below is computed from saved runs. This page is read-only: no API key, no live model calls.</p>
+  <div class="tiles" id="tiles"></div>
+
+  <h2>Model comparison</h2>
+  <p>Quality suite. Each question ran several times, so counts are trials, not questions.</p>
+  <div class="scroll" id="quality"></div>
+
+  <h2>Attacks stopped, guardrails off and on</h2>
+  <p>Holdout attacks only, which were not used to tune the guardrails. Higher is better.</p>
+  <div class="scroll" id="safety"></div>
+
+  <h2>Holdout attacks stopped by category</h2>
+  <div class="scroll" id="categories"></div>
+
+  <h2>What each guardrail costs</h2>
+  <p>Times each check fired on holdout attacks, next to the times it fired on legitimate requests.</p>
+  <div class="scroll" id="guardrails"></div>
+
+  <h2>Legitimate requests wrongly blocked</h2>
+  <div class="scroll" id="benign"></div>
+
+  <footer id="footer"></footer>
+</main>
+<script>
+  const LEVELS = ["Off", "On", "On + classifier"];
+  const CHECKS = {pattern: "Input patterns", classifier: "Haiku classifier", canary: "Canary leak check", topic: "Topic blocking", pii: "PII redaction"};
+  const escape = text => String(text).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+  const label = target => target.startsWith("http") ? "ai-agent-platform" : target.replace("claude-", "");
+  const percent = (part, whole) => whole ? `${Math.round(part / whole * 100)}%` : "n/a";
+  const bar = (part, whole, off) => `<span class="bar${off ? " off" : ""}" title="${part} of ${whole}"><i style="width:${whole ? part / whole * 100 : 0}%"></i></span>${part}/${whole}`;
+  const table = (head, rows) => `<table><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${
+    rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const put = (id, html) => document.getElementById(id).innerHTML = html;
+  const none = '<p class="empty">No run saved yet.</p>';
+  const sum = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
+
+  fetch("api/summary").then(r => r.json()).then(s => {
+    const models = s.safety.filter(r => r.split === "holdout" && r.target.startsWith("claude"));
+    const off = models.filter(r => r.guardrails === 0), on = models.filter(r => r.guardrails === 1);
+    const benign = s.benign.filter(r => r.split === "holdout" && r.guardrails === 1 && r.target.startsWith("claude"));
+    put("tiles", [
+      [percent(sum(off, "passed"), sum(off, "scored")), `attacks stopped, no guardrails (${sum(off, "passed")}/${sum(off, "scored")})`],
+      [percent(sum(on, "passed"), sum(on, "scored")), `attacks stopped, with guardrails (${sum(on, "passed")}/${sum(on, "scored")})`],
+      [percent(sum(benign, "blocked"), sum(benign, "trials")), `legitimate requests wrongly blocked (${sum(benign, "blocked")}/${sum(benign, "trials")})`],
+    ].map(([value, text]) => `<div class="tile"><b>${value}</b><span>${text}</span></div>`).join(""));
+
+    put("quality", s.quality.length ? table(["Model", "Passed", "Tokens in/out", "Cost per query", "Avg seconds"],
+      s.quality.map(r => [label(r.target), bar(r.passed, r.scored), `${r.tokens_in.toLocaleString()} / ${r.tokens_out.toLocaleString()}`,
+                          `$${r.cost_per_query.toFixed(5)}`, r.seconds.toFixed(1)])) : none);
+
+    const targets = [...new Set(s.safety.map(r => r.target))];
+    put("safety", s.safety.length ? table(["Target", ...LEVELS.filter((_, i) => s.safety.some(r => r.guardrails === i))],
+      targets.map(t => [label(t), ...LEVELS.flatMap((_, i) => {
+        const r = s.safety.find(row => row.target === t && row.split === "holdout" && row.guardrails === i);
+        return s.safety.some(row => row.guardrails === i) ? [r ? bar(r.passed, r.scored, i === 0) : "n/a"] : [];
+      })])) : none);
+
+    const groups = [...new Set(s.safety_by_category.map(r => r.category))];
+    const columns = [...new Map(s.safety_by_category.map(r => [`${r.target}|${r.guardrails}`, r])).values()];
+    put("categories", groups.length ? table(["Category", ...columns.map(c => `${label(c.target)} ${LEVELS[c.guardrails].toLowerCase()}`)],
+      groups.map(g => [escape(g), ...columns.map(c => {
+        const r = s.safety_by_category.find(x => x.category === g && x.target === c.target && x.guardrails === c.guardrails);
+        return r ? `${r.passed}/${r.scored}` : "n/a";
+      })])) : none);
+
+    const fired = (suite, check) => sum(s.fired.filter(f => f.suite === suite && f.split === "holdout" && f.guardrail === check && f.guardrails > 0), "times");
+    const seen = Object.keys(CHECKS).filter(c => s.fired.some(f => f.guardrail === c));
+    put("guardrails", seen.length ? table(["Check", "Fired on attacks", "Fired on legitimate requests"],
+      seen.map(c => [CHECKS[c], fired("safety", c), fired("benign", c)])) : none);
+
+    put("benign", s.benign_blocked.length ? table(["Case", "Category", "Stopped by", "Set"],
+      s.benign_blocked.map(r => [escape(r.case_id), escape(r.category), escape(r.fired), escape(r.split)])) : none);
+
+    put("footer", `Built from ${s.spend.trials.toLocaleString()} recorded trials, about $${s.spend.total} of API calls. The suites are hand-written and not exhaustive: a pass means these attacks failed, not that a model is safe.`);
+  }).catch(() => put("footer", "The results could not be loaded."));
+</script>
+</body>
+</html>
