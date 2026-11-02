@@ -31,7 +31,13 @@ PATTERNS = [re.compile(pattern) for pattern in (
     r"\byou are (now )?(dan|an? (unrestricted|unfiltered)|in (developer|debug) mode)\b",
     r"\b(no|without) (rules|restrictions|limits|filters)\b",
     r"\bsystem override\b|\bnew (system )?prompt\b|\bend of prompt\b",
+    r"\b(ignore|disregard|forget)\b.{0,30}\b(everything|anything)\b.{0,30}\b(told|said|given|instructed)\b",
+    r"\b(you are now|you're now|pretend (you're|you are|to be)|stay in character)\b",
+    r"\b(assistants?|agents?|ai|automated readers?)\b.{0,40}\bmust\b",
+    r"\b(spell|encode|reversed?|shift|rot13|acrostic|ascii)\b.{0,50}\b(code|secret|password|key|token)\b",
+    r"\b(supervisor|manager|admin|administrator|compliance)\b.{0,50}\b(approved?|authori[sz]ed|granted)\b",
 )]
+ASKS_THE_MEANING = re.compile(r"^what (does|do|is) .{0,60}\bmean\??$")  # asking what an attack phrase means isn't an attack
 COMPACT_PHRASES = ("ignorepreviousinstructions", "ignoreallinstructions", "disregardpreviousinstructions",
                    "ignoreyourinstructions", "forgetpreviousinstructions")
 
@@ -74,6 +80,8 @@ def unmask(text: str) -> list[str]:
 
 
 def check_patterns(text: str) -> bool:
+    if ASKS_THE_MEANING.match(normalise(text)):
+        return False
     for view in unmask(text):
         compact = re.sub(r"[^a-z0-9]", "", view)
         if any(pattern.search(view) for pattern in PATTERNS) or any(phrase in compact for phrase in COMPACT_PHRASES):
