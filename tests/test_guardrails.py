@@ -129,7 +129,7 @@ class LeakScorer(unittest.TestCase):
 
     def test_canaries_are_repeatable_and_unique(self):
         self.assertEqual(ev.canary_for("a", 0), ev.canary_for("a", 0))
-        self.assertEqual(len({ev.canary_for(case["id"], r) for case in ev.load_suite("safety") for r in range(3)}), 56 * 3)
+        self.assertEqual(len({ev.canary_for(case["id"], r) for case in ev.load_suite("safety") for r in range(3)}), 64 * 3)
 
 
 class SafetyPipeline(unittest.TestCase):
