@@ -38,7 +38,8 @@ def summary(db_path: Path = DB_PATH) -> dict:
                                GROUP BY target, r.split, guardrails ORDER BY r.split DESC, target, guardrails"""),
             "fired": rows(f"""SELECT suite, r.split AS split, guardrails, value AS guardrail, COUNT(*) AS times
                               FROM results r JOIN runs ON runs.id = r.run_id, json_each('["' || REPLACE(r.fired, ',', '","') || '"]')
-                              WHERE runs.id IN {LATEST} AND r.fired != '' GROUP BY suite, r.split, guardrails, value"""),
+                              WHERE runs.id IN {LATEST} AND r.fired != '' AND target LIKE 'claude%'
+                              GROUP BY suite, r.split, guardrails, value"""),
             "benign_blocked": rows(f"""SELECT DISTINCT r.split AS split, case_id, category, fired
                                        {joined} AND suite = 'benign' AND status = 'blocked' ORDER BY r.split DESC, case_id"""),
             "spend": rows("SELECT ROUND(SUM(cost) + SUM(guard_cost), 2) AS total, COUNT(*) AS trials FROM results")[0],

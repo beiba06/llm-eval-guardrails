@@ -64,6 +64,11 @@
   <h2>Legitimate requests wrongly blocked</h2>
   <div class="scroll" id="benign"></div>
 
+  <h2>Red-team of a real app</h2>
+  <p>Indirect attacks uploaded as documents to a local copy of a document-checking agent, through its real /upload and /chat endpoints.
+     A leak counts whether it appears in the answer or in a tool call.</p>
+  <div class="scroll" id="app"></div>
+
   <footer id="footer"></footer>
 </main>
 <script>
@@ -108,10 +113,15 @@
         return r ? `${r.passed}/${r.scored}` : "n/a";
       })])) : none);
 
-    const fired = (suite, check) => sum(s.fired.filter(f => f.suite === suite && f.split === "holdout" && f.guardrail === check && f.guardrails > 0), "times");
+    const level = check => check === "classifier" ? 2 : 1;  // the classifier has its own run, so nothing is counted twice
+    const fired = (suite, check) => sum(s.fired.filter(f => f.suite === suite && f.split === "holdout" && f.guardrail === check && f.guardrails === level(check)), "times");
+    const trials = (rows, check) => sum(rows.filter(r => r.split === "holdout" && r.guardrails === level(check)), "trials");
     const seen = Object.keys(CHECKS).filter(c => s.fired.some(f => f.guardrail === c));
     put("guardrails", seen.length ? table(["Check", "Fired on attacks", "Fired on legitimate requests"],
-      seen.map(c => [CHECKS[c], fired("safety", c), fired("benign", c)])) : none);
+      seen.map(c => [CHECKS[c], `${fired("safety", c)}/${trials(s.safety, c)}`, `${fired("benign", c)}/${trials(s.benign, c)}`])) : none);
+
+    put("app", s.app.length ? table(["Guardrails", "Stopped", "Cost per query", "Avg seconds"],
+      s.app.map(r => [LEVELS[r.guardrails], bar(r.passed, r.scored, r.guardrails === 0), `$${r.cost_per_query.toFixed(4)}`, r.seconds.toFixed(1)])) : none);
 
     put("benign", s.benign_blocked.length ? table(["Case", "Category", "Stopped by", "Set"],
       s.benign_blocked.map(r => [escape(r.case_id), escape(r.category), escape(r.fired), escape(r.split)])) : none);
