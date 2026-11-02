@@ -294,10 +294,10 @@ def report(db_path: Path) -> str:
     sections += ["## Real app, indirect attacks\n", markdown(["App", "Guardrails", "Stopped", "Refused", "No verdict", "$/query", "Avg s"], [
         [r["target"], level[r["guardrails"]], f"{r['passed']}/{r['scored']}", r["refused"], r["trials"] - r["scored"],
          f"{r['cost_per_query']:.4f}", f"{r['seconds']:.1f}"] for r in s["app"]])]
-    sections += ["## Holdout attacks stopped by category\n", markdown(["Category", "Target", "Guardrails", "Stopped"], [
-        [r["category"], r["target"], level[r["guardrails"]], f"{r['passed']}/{r['scored']}"] for r in s["safety_by_category"]])]
-    sections += ["## Legitimate requests\n", markdown(["Target", "Split", "Guardrails", "Let through", "Wrongly blocked"], [
-        [r["target"], r["split"], level[r["guardrails"]], f"{r['passed']}/{r['scored']}", r["blocked"]] for r in s["benign"]])]
+    sections += ["## Holdout attacks caught before the model\n", markdown(["Category", "Patterns", "Classifier"], [
+        [r["category"], f"{r['pattern']}/{r['trials']}", f"{r['classifier']}/{r['trials']}"] for r in s["caught_by_category"]])]
+    sections += ["## Legitimate requests\n", markdown(["Target", "Split", "Guardrails", "Answered", "Wrongly blocked", "Refused by the API"], [
+        [r["target"], r["split"], level[r["guardrails"]], f"{r['passed']}/{r['trials']}", r["blocked"], r["refused"]] for r in s["benign"]])]
     sections += ["## Times each check fired\n", markdown(["Check", "Suite", "Split", "Guardrails", "Times"], [
         [r["guardrail"], r["suite"], r["split"], level[r["guardrails"]], r["times"]] for r in s["fired"]])]
     sections += ["## Wrongly blocked cases\n", markdown(["Case", "Category", "Split", "Stopped by"], [

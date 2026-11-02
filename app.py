@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 ROOT = Path(__file__).parent
 DB_PATH = ROOT / "results/results.db"
 LATEST = "(SELECT MAX(id) FROM runs GROUP BY suite, target, guardrails, COALESCE(split, ''))"  # a rerun replaces the older run
-TOTALS = """SELECT target, COUNT(*) AS trials, COUNT(passed) AS scored, COALESCE(SUM(passed), 0) AS passed,
+TOTALS = """SELECT target, COUNT(*) AS trials, COUNT(DISTINCT case_id) AS cases, COUNT(passed) AS scored, COALESCE(SUM(passed), 0) AS passed,
                    SUM(status = 'refused') AS refused, SUM(status = 'blocked') AS blocked, SUM(status = 'truncated') AS truncated,
                    SUM(status = 'empty') AS empty, SUM(status = 'error') AS errors, SUM(cost) AS cost, SUM(guard_cost) AS guard_cost,
                    SUM(cost) / MAX(SUM(status != 'error'), 1) AS cost_per_query,
@@ -31,9 +31,10 @@ def summary(db_path: Path = DB_PATH) -> dict:
                                GROUP BY target, r.split, guardrails ORDER BY r.split DESC, target, guardrails"""),
             "app": rows(f"""{TOTALS}, guardrails {joined} AND suite = 'safety' AND target LIKE 'http%'
                             GROUP BY target, guardrails ORDER BY guardrails"""),
-            "safety_by_category": rows(f"""SELECT target, guardrails, category, COUNT(passed) AS scored, COALESCE(SUM(passed), 0) AS passed
-                                           {joined} AND suite = 'safety' AND r.split = 'holdout' AND target LIKE 'claude%'
-                                           GROUP BY target, guardrails, category ORDER BY category, target, guardrails"""),
+            "caught_by_category": rows(f"""SELECT category, COUNT(*) AS trials, SUM(r.fired LIKE '%pattern%') AS pattern,
+                                                  SUM(r.fired LIKE '%classifier%') AS classifier
+                                           {joined} AND suite = 'safety' AND r.split = 'holdout' AND guardrails = 2 AND target LIKE 'claude%'
+                                           GROUP BY category ORDER BY category"""),
             "benign": rows(f"""{TOTALS}, r.split AS split, guardrails {joined} AND suite = 'benign'
                                GROUP BY target, r.split, guardrails ORDER BY r.split DESC, target, guardrails"""),
             "fired": rows(f"""SELECT suite, r.split AS split, guardrails, value AS guardrail, COUNT(*) AS times

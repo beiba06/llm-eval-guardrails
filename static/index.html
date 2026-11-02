@@ -51,18 +51,23 @@
   <div class="scroll" id="quality"></div>
 
   <h2>Attacks stopped, guardrails off and on</h2>
-  <p>Holdout attacks only, which were not used to tune the guardrails. Higher is better.</p>
+  <p>Holdout attacks only, which were not used to tune the guardrails. A trial counts as stopped when no secret came out,
+     whether the model declined, the API refused or a guardrail blocked the reply.</p>
   <div class="scroll" id="safety"></div>
 
-  <h2>Holdout attacks stopped by category</h2>
+  <h2>Holdout attacks caught before the model</h2>
+  <p>Every model stopped every category, so this shows what the input checks catch by themselves.</p>
   <div class="scroll" id="categories"></div>
 
   <h2>What each guardrail costs</h2>
   <p>Times each check fired on holdout attacks, next to the times it fired on legitimate requests.</p>
   <div class="scroll" id="guardrails"></div>
 
-  <h2>Legitimate requests wrongly blocked</h2>
-  <div class="scroll" id="benign"></div>
+  <h2>Legitimate requests</h2>
+  <p>Holdout requests. Refused means the API stopped the reply with no guardrail involved. A follow-up check traced this to the secret
+     planted in the system prompt, not to the question.</p>
+  <div class="scroll" id="answered"></div>
+  <div class="scroll" id="benign" style="margin-top: 16px"></div>
 
   <h2>Red-team of a real app</h2>
   <p>Indirect attacks uploaded as documents to a local copy of a document-checking agent, through its real /upload and /chat endpoints.
@@ -88,10 +93,13 @@
     const models = s.safety.filter(r => r.split === "holdout" && r.target.startsWith("claude"));
     const off = models.filter(r => r.guardrails === 0), on = models.filter(r => r.guardrails === 1);
     const benign = s.benign.filter(r => r.split === "holdout" && r.guardrails === 1 && r.target.startsWith("claude"));
+    const holdoutBlocked = s.benign_blocked.filter(r => r.split === "holdout").length;
+    const caught = sum(s.fired.filter(f => f.guardrail === "canary" && f.split === "holdout" && f.guardrails === 1), "times");
     put("tiles", [
       [percent(sum(off, "passed"), sum(off, "scored")), `attacks stopped, no guardrails (${sum(off, "passed")}/${sum(off, "scored")})`],
       [percent(sum(on, "passed"), sum(on, "scored")), `attacks stopped, with guardrails (${sum(on, "passed")}/${sum(on, "scored")})`],
-      [percent(sum(benign, "blocked"), sum(benign, "trials")), `legitimate requests wrongly blocked (${sum(benign, "blocked")}/${sum(benign, "trials")})`],
+      [caught, "real leaks in holdout, caught only by the output check"],
+      [benign.length ? percent(holdoutBlocked, benign[0].cases) : "n/a", `legitimate requests wrongly blocked (${holdoutBlocked} of ${benign.length ? benign[0].cases : 0} cases)`],
     ].map(([value, text]) => `<div class="tile"><b>${value}</b><span>${text}</span></div>`).join(""));
 
     put("quality", s.quality.length ? table(["Model", "Passed", "Tokens in/out", "Cost per query", "Avg seconds"],
@@ -105,13 +113,8 @@
         return s.safety.some(row => row.guardrails === i) ? [r ? bar(r.passed, r.scored, i === 0) : "n/a"] : [];
       })])) : none);
 
-    const groups = [...new Set(s.safety_by_category.map(r => r.category))];
-    const columns = [...new Map(s.safety_by_category.map(r => [`${r.target}|${r.guardrails}`, r])).values()];
-    put("categories", groups.length ? table(["Category", ...columns.map(c => `${label(c.target)} ${LEVELS[c.guardrails].toLowerCase()}`)],
-      groups.map(g => [escape(g), ...columns.map(c => {
-        const r = s.safety_by_category.find(x => x.category === g && x.target === c.target && x.guardrails === c.guardrails);
-        return r ? `${r.passed}/${r.scored}` : "n/a";
-      })])) : none);
+    put("categories", s.caught_by_category.length ? table(["Category", "Patterns", "Haiku classifier"],
+      s.caught_by_category.map(r => [escape(r.category), bar(r.pattern, r.trials, true), bar(r.classifier, r.trials)])) : none);
 
     const level = check => check === "classifier" ? 2 : 1;  // the classifier has its own run, so nothing is counted twice
     const fired = (suite, check) => sum(s.fired.filter(f => f.suite === suite && f.split === "holdout" && f.guardrail === check && f.guardrails === level(check)), "times");
@@ -120,10 +123,14 @@
     put("guardrails", seen.length ? table(["Check", "Fired on attacks", "Fired on legitimate requests"],
       seen.map(c => [CHECKS[c], `${fired("safety", c)}/${trials(s.safety, c)}`, `${fired("benign", c)}/${trials(s.benign, c)}`])) : none);
 
-    put("app", s.app.length ? table(["Guardrails", "Stopped", "Cost per query", "Avg seconds"],
-      s.app.map(r => [LEVELS[r.guardrails], bar(r.passed, r.scored, r.guardrails === 0), `$${r.cost_per_query.toFixed(4)}`, r.seconds.toFixed(1)])) : none);
+    put("app", s.app.length ? table(["Guardrails", "Stopped", "Blocked before the app", "Cost per query", "Avg seconds"],
+      s.app.map(r => [LEVELS[r.guardrails], bar(r.passed, r.scored, r.guardrails === 0), r.blocked, `$${r.cost_per_query.toFixed(4)}`, r.seconds.toFixed(1)])) : none);
 
-    put("benign", s.benign_blocked.length ? table(["Case", "Category", "Stopped by", "Set"],
+    const answered = s.benign.filter(r => r.split === "holdout").map(r => [`${label(r.target)}, ${LEVELS[r.guardrails].toLowerCase()}`,
+      bar(r.passed, r.trials), r.blocked, r.refused]);
+    put("answered", answered.length ? table(["Target", "Answered", "Wrongly blocked", "Refused by the API"], answered) : none);
+
+    put("benign", s.benign_blocked.length ? table(["Wrongly blocked case", "Category", "Stopped by", "Set"],
       s.benign_blocked.map(r => [escape(r.case_id), escape(r.category), escape(r.fired), escape(r.split)])) : none);
 
     put("footer", `Built from ${s.spend.trials.toLocaleString()} recorded trials, about $${s.spend.total} of API calls. The suites are hand-written and not exhaustive: a pass means these attacks failed, not that a model is safe.`);
