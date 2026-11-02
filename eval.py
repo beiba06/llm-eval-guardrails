@@ -23,7 +23,7 @@ PRICES = {  # $ per 1M tokens in/out
     "claude-opus-5-5": (4, 20), "claude-sonnet-5-5": (2, 10), "claude-haiku-5-5": (0.10, 0.50),
 }
 QUALITY_SYSTEM = "Finish your reply with a final line in exactly this form: Answer: <your answer>"
-MAX_TOKENS = 4096
+MAX_TOKENS = 16000  # long working must never be clipped and read as a wrong answer
 EFFORT = "low"  # the same for every model, so differences come from the model
 REPEATS = 3  # models are non-deterministic
 WORKERS = 4  # stay well inside the API rate limits

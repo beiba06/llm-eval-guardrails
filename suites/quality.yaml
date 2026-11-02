@@ -195,3 +195,96 @@
   prompt: What does HTTP status code 429 mean? Give its standard reason phrase.
   expected: '\btoo many requests\b'
   answer: Too Many Requests
+
+- id: hard-multiply
+  category: hard
+  prompt: What is 8675309 multiplied by 1234567?
+  expected: (?<![\w.])10710250206203(?![\w]|\.\d)
+  answer: '10710250206203'
+- id: hard-modinv
+  category: hard
+  prompt: What is the modular inverse of 1234 modulo 4567? Give the value between 1 and 4566.
+  expected: (?<![\w.])2661(?![\w]|\.\d)
+  answer: '2661'
+- id: hard-base7
+  category: hard
+  prompt: Write the decimal number 987654321 in base 7.
+  expected: (?<![\w.])33321631443(?![\w]|\.\d)
+  answer: '33321631443'
+- id: hard-popcount
+  category: hard
+  prompt: How many 1 bits are in the binary form of 3735928559?
+  expected: (?<![\w.])24(?![\w]|\.\d)
+  answer: '24'
+- id: hard-modpow
+  category: hard
+  prompt: What is 7^222 modulo 1009?
+  expected: (?<![\w.])60(?![\w]|\.\d)
+  answer: '60'
+- id: hard-collatz
+  category: hard
+  prompt: Start at 2463. If the number is even halve it, otherwise multiply by 3 and add 1. How many steps does it take to
+    reach 1?
+  expected: (?<![\w.])208(?![\w]|\.\d)
+  answer: '208'
+- id: hard-prime-count
+  category: hard
+  prompt: How many prime numbers are there between 1000 and 1400?
+  expected: (?<![\w.])54(?![\w]|\.\d)
+  answer: '54'
+- id: hard-edit-distance
+  category: hard
+  prompt: What is the Levenshtein edit distance between fcgabbfadabggbdbga and bdagadacegcbecbdfb?
+  expected: (?<![\w.])14(?![\w]|\.\d)
+  answer: '14'
+- id: hard-lcs
+  category: hard
+  prompt: What is the length of the longest common subsequence of badhgfhhfedcdbehfheb and bgcfchgabfffhhbbehba?
+  expected: (?<![\w.])10(?![\w]|\.\d)
+  answer: '10'
+- id: hard-overlap-count
+  category: hard
+  prompt: How many times does 'aba' occur in this string, counting overlapping matches? bbbbbabbaabaabaabbbaabbbabbbbbaaaaaaaababbaabbbaabbbbbabbaaa
+  expected: (?<![\w.])3(?![\w]|\.\d)
+  answer: '3'
+- id: hard-reverse-long
+  category: hard
+  prompt: 'Reverse this string exactly: n2khvdgaj8gxbenyjqwx4hh5344tfjgvq4k7bn7x'
+  expected: (?<![\w.])x7nb7k4qvgjft4435hh4xwqjynebxg8jagdvhk2n(?![\w]|\.\d)
+  answer: x7nb7k4qvgjft4435hh4xwqjynebxg8jagdvhk2n
+- id: hard-nth-char
+  category: hard
+  prompt: Counting from 1, what is the 37th character of this string? tvkqnjpxevojsysnikknjaxizmmnumidbmiujhsbqqmohouvzsgmbsseirih
+  expected: (?<![\w.])j(?![\w]|\.\d)
+  answer: j
+- id: hard-median
+  category: hard
+  prompt: What is the median of these numbers? 301, 445, 309, 594, 739, 724, 960, 101, 590, 768, 452, 918, 758, 186, 954,
+    776, 222, 497, 901, 828, 868, 304, 589, 282, 544, 908, 751, 440, 188, 920, 839
+  expected: (?<![\w.])594(?![\w]|\.\d)
+  answer: '594'
+- id: hard-weekday-offset
+  category: hard
+  prompt: What day of the week is 12345 days after 14 July 1989?
+  expected: (?<![\w.])Tuesday(?![\w]|\.\d)
+  answer: Tuesday
+- id: hard-trace
+  category: hard
+  prompt: "What does this Python print?\n\nx, y, t = 3, 7, 0\nfor i in range(1, 16):\n    if i % 3 == 0:\n        x, y = y,\
+    \ x + y\n    elif i % 5 == 0:\n        x = x * 2 - y\n    else:\n        y = (y + i * x) % 101\n    t += y % 7\nprint(t)"
+  expected: (?<![\w.])50(?![\w]|\.\d)
+  answer: '50'
+- id: hard-grid-paths
+  category: hard
+  prompt: On a 6 by 6 grid, rows and columns are numbered 0 to 5. You start at (0,0) and may only move down or right, to reach
+    (5,5). The cells (1,1), (2,3), (3,1), (4,4) and (0,3) are blocked. How many paths are there?
+  expected: (?<![\w.])15(?![\w]|\.\d)
+  answer: '15'
+- id: hard-seating
+  category: hard
+  prompt: Seven people sit in a row, in seats 1 to 7. Exactly one seat lies between Ari and Bo. Di sits somewhere to the left
+    of Cy. Ed sits at one end of the row. Flo and Gus sit next to each other. Bo is in seat 4. Flo sits somewhere to the left
+    of Gus. Di is not in seat 1. Gus is not in seat 1. Cy is not in seat 7. Ari sits somewhere to the left of Gus. Who is
+    in seat 7?
+  expected: (?<![\w.])Gus(?![\w]|\.\d)
+  answer: Gus
