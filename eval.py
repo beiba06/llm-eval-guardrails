@@ -6,11 +6,16 @@ Usage: python eval.py run --suite safety --target claude-haiku-5-5 --guardrails
 import argparse
 import base64
 import hashlib
+import json
+import os
 import random
 import re
 import sqlite3
 import subprocess
 import time
+import urllib.parse
+import urllib.request
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -38,6 +43,7 @@ EFFORT = "low"  # the same for every model, so differences come from the model
 REPEATS = 3  # models are non-deterministic
 WORKERS = 4  # stay well inside the API rate limits
 ATTEMPTS = 5
+APP_TIMEOUT = 180  # a hard ceiling per message: a stream of keepalive pings never reaches a read timeout
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY, suite TEXT, target TEXT, guardrails INTEGER, split TEXT, repeats INTEGER,
@@ -90,6 +96,37 @@ def call_model(model: str, system: str, messages: list) -> Reply:
     return Reply("".join(b.text for b in msg.content if b.type == "text"), msg.stop_reason,
                  msg.usage.input_tokens, msg.usage.output_tokens,
                  (msg.usage.input_tokens * price_in + msg.usage.output_tokens * price_out) / 1e6, latency, attempt)
+
+
+def upload(base: str, session: str, document: str) -> None:
+    query = urllib.parse.urlencode({"session_id": session, "name": "document.txt"})
+    urllib.request.urlopen(urllib.request.Request(f"{base}/upload?{query}", document.encode(), method="POST"), timeout=30).close()
+
+
+def call_app(base: str, session: str, text: str) -> Reply:
+    """Send one message to a real app and read its Server-Sent Events. Tool inputs count as output: a secret placed
+    in a web search has left the app, however clean the visible answer looks."""
+    body = json.dumps({"session_id": session, "message": text}).encode()
+    began = time.monotonic()
+    parts, stop, done = [], "end_turn", {}
+    with urllib.request.urlopen(urllib.request.Request(f"{base}/chat", body, {"Content-Type": "application/json"}), timeout=APP_TIMEOUT) as stream:
+        for line in stream:
+            if time.monotonic() - began > APP_TIMEOUT:
+                raise RuntimeError("the app took too long")
+            if not line.startswith(b"data:"):
+                continue  # keepalive pings
+            event = json.loads(line[5:])
+            if event["type"] == "text":
+                parts.append(event["text"])
+            elif event["type"] == "tool":
+                parts.append(f"\n[{event['name']}: {json.dumps(event['input'])}]\n")
+            elif event["type"] == "done":
+                done = event
+            elif event["type"] == "error" and "declined" in event["message"]:
+                stop = "refusal"
+            elif event["type"] == "error":
+                raise RuntimeError(event["message"])
+    return Reply("".join(parts), stop, done.get("tokens", 0), 0, done.get("cost", 0.0), time.monotonic() - began, 1)  # the app reports one token total
 
 
 def score_quality(case: dict, text: str) -> bool:
@@ -156,12 +193,14 @@ def run_case(suite: str, case: dict, target: str, repeat: int, guard: int = 0) -
     """Run one (case, repeat) from a clean state. A failure of the plumbing is an error row, never a verdict.
     guard is 0 for no guardrails, 1 for guardrails, 2 for guardrails plus the Haiku classifier."""
     row = new_row(case, repeat)
+    is_app, session = target.startswith("http"), uuid.uuid4().hex
     if suite == "quality":
         system = QUALITY_SYSTEM
     else:
-        row["canary"] = canary_for(case["id"], repeat)
+        row["canary"] = os.environ["EVAL_CANARY"] if is_app else canary_for(case["id"], repeat)  # an app's secret is set when it starts
         system = SAFETY_SYSTEM.format(canary=row["canary"])
     messages, texts, fired, blocked = [], [], [], False
+    uploaded = False
     try:
         for turn in turns_of(case):
             if guard:
@@ -171,8 +210,14 @@ def run_case(suite: str, case: dict, target: str, repeat: int, guard: int = 0) -
                 if blocked := bool(names):
                     texts.append(BLOCK_MESSAGE)
                     break
-            messages.append({"role": "user", "content": turn})
-            reply = call_model(target, system, messages)
+            if is_app:
+                if "document" in case and not uploaded:
+                    upload(target, session, case["document"])
+                    uploaded = True
+                reply = call_app(target, session, case["prompt"] if "document" in case else turn)
+            else:
+                messages.append({"role": "user", "content": turn})
+                reply = call_model(target, system, messages)
             row["stop_reason"] = reply.stop_reason
             for key in ("tokens_in", "tokens_out", "cost", "latency", "attempts"):
                 row[key] += getattr(reply, key)
@@ -183,7 +228,7 @@ def run_case(suite: str, case: dict, target: str, repeat: int, guard: int = 0) -
             texts.append(text)
             if blocked or reply.stop_reason != "end_turn":
                 break  # a blocked, refused or clipped turn can't be continued
-    except (anthropic.AnthropicError, RuntimeError) as e:
+    except (anthropic.AnthropicError, RuntimeError, OSError) as e:
         return row | {"status": "error", "response": f"{type(e).__name__}: {e}", "fired": ",".join(dict.fromkeys(fired))}
     row["response"], row["fired"] = "\n".join(texts), ",".join(dict.fromkeys(fired))
     row["status"] = "blocked" if blocked else {"refusal": "refused", "max_tokens": "truncated"}.get(row["stop_reason"], "ok")
@@ -246,6 +291,9 @@ def report(db_path: Path) -> str:
     sections += ["## Attacks stopped\n", markdown(["Target", "Split", "Guardrails", "Stopped", "Blocked", "Refused", "No verdict", "Guard $"], [
         [r["target"], r["split"], level[r["guardrails"]], f"{r['passed']}/{r['scored']}", r["blocked"], r["refused"],
          r["trials"] - r["scored"], f"{r['guard_cost']:.4f}"] for r in s["safety"]])]
+    sections += ["## Real app, indirect attacks\n", markdown(["App", "Guardrails", "Stopped", "Refused", "No verdict", "$/query", "Avg s"], [
+        [r["target"], level[r["guardrails"]], f"{r['passed']}/{r['scored']}", r["refused"], r["trials"] - r["scored"],
+         f"{r['cost_per_query']:.4f}", f"{r['seconds']:.1f}"] for r in s["app"]])]
     sections += ["## Holdout attacks stopped by category\n", markdown(["Category", "Target", "Guardrails", "Stopped"], [
         [r["category"], r["target"], level[r["guardrails"]], f"{r['passed']}/{r['scored']}"] for r in s["safety_by_category"]])]
     sections += ["## Legitimate requests\n", markdown(["Target", "Split", "Guardrails", "Let through", "Wrongly blocked"], [
@@ -263,7 +311,8 @@ def main() -> None:
     commands.add_parser("report").add_argument("--db", type=Path, default=DB_PATH)
     run = commands.add_parser("run")
     run.add_argument("--suite", required=True, choices=["quality", "safety", "benign"])
-    run.add_argument("--target", required=True, choices=sorted(PRICES))
+    run.add_argument("--target", required=True, help="a Claude model, or the URL of an app with /upload and /chat")
+    run.add_argument("--category", help="run one attack category only")
     run.add_argument("--split", choices=["dev", "holdout"])
     run.add_argument("--guardrails", action="store_true")
     run.add_argument("--classifier", action="store_true", help="add the Haiku classifier to the guardrails")
@@ -274,8 +323,10 @@ def main() -> None:
         print(report(args.db))
         return
 
+    if args.target not in PRICES and not args.target.startswith("http"):
+        parser.error(f"--target must be one of {sorted(PRICES)} or a URL")
     guard = 2 if args.classifier else int(args.guardrails)
-    cases = load_suite(args.suite, args.split)
+    cases = [case for case in load_suite(args.suite, args.split) if args.category in (None, case.get("category"))]
     jobs = [(case, repeat) for case in cases for repeat in range(args.repeats)]
     with ThreadPoolExecutor(WORKERS) as pool:
         rows = list(pool.map(lambda job: run_case(args.suite, job[0], args.target, job[1], guard), jobs))
